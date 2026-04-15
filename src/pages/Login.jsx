@@ -1,26 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Shield, ActivitySquare } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import { Activity, Shield, ActivitySquare, Loader2, AlertCircle } from 'lucide-react';
+import { useTheme } from '../app/providers/ThemeProvider';
+import { useAuth } from '../features/auth/hooks';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Alert, AlertDescription } from '../components/ui/alert';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { isDarkMode } = useTheme();
+  const { login } = useAuth();
 
-  const handleSubmit = (e) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    localStorage.setItem('mamawatch_auth', 'true');
-    navigate('/dashboard');
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await login(email, password);
+      // Navigate to dashboard is handled by the route guard or can be explicit
+      navigate('/dashboard');
+    } catch (err) {
+      if (err.response?.data?.error?.message) {
+        setError(err.response.data.error.message);
+      } else {
+        setError('Login failed. Please check your credentials.');
+      }
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex h-screen w-screen bg-[var(--color-bg-base)] transition-colors duration-300">
-      
+
       {/* Left Visual Side */}
       <div className="hidden lg:flex w-5/12 bg-[var(--color-primary)] flex-col justify-center items-center text-white px-12 text-center relative overflow-hidden">
         {/* Decorative Grid */}
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_white_1px,_transparent_1px)] [background-size:24px_24px]"></div>
-        
+
         <div className="w-24 h-24 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mb-8 shadow-xl border border-white/20">
           <Activity size={56} className="text-white" />
         </div>
@@ -53,38 +76,59 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-xs uppercase tracking-widest font-bold text-[var(--color-text-muted)] mb-2">Staff ID</label>
-              <input 
-                type="text" 
-                className="w-full px-4 py-3 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all text-[var(--color-text-main)] placeholder-gray-400 dark:placeholder-gray-600 font-mono"
-                placeholder="NUR-ID-001"
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2 text-left">
+              <Label htmlFor="email" className="text-xs uppercase tracking-widest font-bold text-[var(--color-text-muted)]">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="clinician@example.com"
                 required
+                disabled={isLoading}
               />
             </div>
-            <div>
-              <label className="block text-xs uppercase tracking-widest font-bold text-[var(--color-text-muted)] mb-2">Passcode</label>
-              <input 
-                type="password" 
-                className="w-full px-4 py-3 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all text-[var(--color-text-main)] placeholder-gray-400 dark:placeholder-gray-600"
+
+            <div className="space-y-2 text-left">
+              <Label htmlFor="password" className="text-xs uppercase tracking-widest font-bold text-[var(--color-text-muted)]">Passcode</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                disabled={isLoading}
               />
             </div>
-            
+
             <div className="flex items-center justify-between text-sm py-2">
               <label className="flex items-center gap-2 cursor-pointer group text-[var(--color-text-muted)]">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]" disabled={isLoading} />
                 <span className="group-hover:text-[var(--color-text-main)] font-medium transition-colors">Remember me</span>
               </label>
               <a href="#" className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] font-bold transition-colors">Forgot passcode?</a>
             </div>
 
-            <button type="submit" className="w-full py-4 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-bold rounded-lg shadow-lg hover:shadow-[var(--color-primary)]/30 transition-all active:scale-[0.98]">
-              Secure Login
-            </button>
+            <Button type="submit" className="w-full py-6 text-base font-bold shadow-lg" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Authenticating...
+                </>
+              ) : (
+                'Secure Login'
+              )}
+            </Button>
           </form>
-          
+
           <div className="mt-8 text-center text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
             Authorized Personnel Only
           </div>

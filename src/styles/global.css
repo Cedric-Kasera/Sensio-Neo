@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./tokens.css";
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -47,9 +49,11 @@
     transition: background-color 0.3s ease, color 0.3s ease;
     @apply bg-background text-foreground;
   }
+
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     @apply font-sans;
   }

@@ -1,9 +1,128 @@
-import React from 'react';
-import { mockDevices } from '../data/mockData';
-import { Wifi, Battery, CheckCircle2, AlertTriangle, MonitorSmartphone, PowerOff } from 'lucide-react';
-import { cn } from '../components/VitalCard';
+import React, { useState } from 'react';
+import { Wifi, Battery, CheckCircle2, AlertTriangle, MonitorSmartphone, PowerOff, MoreVertical } from 'lucide-react';
+import { useDevices, useAssignment, useUnassignDevice, useGenerateCredentials } from '../features/devices/hooks';
+import { DEVICE_STATUS } from '../constants/status';
+import { Skeleton } from '../components/ui/skeleton';
+import { AssignDeviceModal } from '../components/AssignDeviceModal';
+import { cn } from '../lib/utils';
+import { formatRelativeTime } from '../lib/utils/date';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
+import { Button } from '../components/ui/button';
+import { useAuth } from '../features/auth/hooks';
+
+const DeviceRow = ({ device, onAssign }) => {
+  const { data: assignment, isLoading: isAssignmentLoading } = useAssignment(device.deviceKey);
+  const { mutate: unassignDevice, isPending: isUnassigning } = useUnassignDevice();
+  const { mutate: generateCreds, isPending: isGenCreds } = useGenerateCredentials();
+  const { user } = useAuth();
+
+  const isActive = device.status === DEVICE_STATUS.ONLINE;
+  const isWarning = false;
+  const isOffline = device.status === DEVICE_STATUS.OFFLINE;
+  // Note: we don't have battery from API yet, mocking display via fallback
+
+  const handleUnassign = () => {
+    if (confirm(`Unassign ${device.deviceKey}?`)) {
+      unassignDevice({ deviceKey: device.deviceKey, data: { reason: 'manual' } });
+    }
+  };
+
+  const handleGenerateCredentials = () => {
+    generateCreds({ deviceKey: device.deviceKey }, {
+      onSuccess: (data) => {
+        // In a real app we would present this in a modal copy to clipboard. Using prompt for quick hackathon hack
+        prompt(`Credentials for ${device.deviceKey}. PLEASE SAVE SECRET NOW:`, data.secret);
+      }
+    });
+  };
+
+  return (
+    <TableRow className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+      <TableCell className="px-6 border-b-0 py-4">
+        <div className="flex items-center gap-3">
+          <div className={cn("p-2 rounded", isActive ? "bg-emerald-100 text-emerald-600" : isWarning ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500 dark:bg-gray-800")}>
+            {isActive ? <CheckCircle2 size={16} /> : isOffline ? <PowerOff size={16} /> : <AlertTriangle size={16} />}
+          </div>
+          <span className="font-bold font-mono text-[var(--color-text-main)] text-sm">{device.deviceKey}</span>
+        </div>
+      </TableCell>
+      <TableCell className="px-6 border-b-0 py-4 text-sm text-[var(--color-text-muted)]">
+        {device.name} <br /> <span className="text-xs opacity-70">{device.location}</span>
+      </TableCell>
+      <TableCell className="px-6 border-b-0 py-4">
+        <span className={cn(
+          "px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider",
+          isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+            isWarning ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+              "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+        )}>
+          {device.status}
+        </span>
+      </TableCell>
+      <TableCell className="px-6 border-b-0 py-4">
+        <span className="text-sm font-medium text-[var(--color-text-muted)]">{device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'Never'}</span>
+      </TableCell>
+      <TableCell className="px-6 border-b-0 py-4">
+        {isAssignmentLoading ? (
+          <Skeleton className="h-4 w-20" />
+        ) : assignment?.active ? (
+          <span className="text-sm font-bold text-[var(--color-primary)]">
+            {assignment.newbornId}
+          </span>
+        ) : (
+          <span className="text-sm text-gray-400 italic">Unassigned</span>
+        )}
+      </TableCell>
+      <TableCell className="px-6 border-b-0 py-4 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="h-8 w-8 p-0 inline-flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <span className="sr-only">Open menu</span>
+            <MoreVertical className="h-4 w-4 text-[var(--color-text-muted)]" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {assignment?.active ? (
+              <DropdownMenuItem onClick={handleUnassign} className="text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20 focus:text-red-600">
+                Unassign Patient
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => onAssign(device)}>
+                Assign Patient
+              </DropdownMenuItem>
+            )}
+            {user?.role === 'admin' && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleGenerateCredentials}>
+                  Generate Credentials
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+};
 
 export default function Devices() {
+  const { data: devices, isLoading } = useDevices();
+  const [assigningDevice, setAssigningDevice] = useState(null);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <header className="mb-8">
@@ -11,79 +130,49 @@ export default function Devices() {
           <MonitorSmartphone className="text-[var(--color-primary)]" size={32} />
           Device Fleet Management
         </h1>
-        <p className="text-[var(--color-text-muted)] mt-1">Monitor connectivity, battery levels, and assignments.</p>
+        <p className="text-[var(--color-text-muted)] mt-1">Monitor connectivity, status, and view patient assignment roles.</p>
       </header>
 
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-900 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Device ID</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Type / Location</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Battery</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Network</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Assignment</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-border)]">
-              {mockDevices.map((device, index) => {
-                const isActive = device.status === 'Active';
-                const isWarning = device.status === 'Warning';
-                const isOffline = device.status === 'Offline';
-                const batteryLevel = parseInt(device.battery.replace('%', ''));
-                const isLowBattery = batteryLevel < 20;
-
-                return (
-                  <tr key={index} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded", isActive ? "bg-emerald-100 text-emerald-600" : isWarning ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500 dark:bg-gray-800")}>
-                          {isActive ? <CheckCircle2 size={16} /> : isOffline ? <PowerOff size={16} /> : <AlertTriangle size={16} />}
-                        </div>
-                        <span className="font-bold font-mono text-[var(--color-text-main)] text-sm">{device.id}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--color-text-muted)]">
-                      {device.type} • {device.location}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={cn(
-                        "px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider",
-                        isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : 
-                        isWarning ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : 
-                        "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-                      )}>
-                        {device.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Battery size={16} className={isLowBattery ? "text-red-500" : "text-emerald-500"} />
-                        <span className={cn("text-sm font-semibold", isLowBattery ? "text-red-500" : "text-[var(--color-text-main)]")}>
-                          {device.battery}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-[var(--color-text-muted)] text-sm font-medium">
-                        <Wifi size={16} className={isOffline ? 'opacity-30' : 'text-blue-500'} />
-                        {isOffline ? 'Disconnected' : device.connectivity}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-[var(--color-text-main)]">
-                        {device.assignedTo || <span className="text-gray-400 italic">Unassigned</span>}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {isLoading ? (
+          <div className="p-6 space-y-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : devices?.length === 0 ? (
+          <div className="p-12 text-center text-[var(--color-text-muted)]">
+            <MonitorSmartphone className="mx-auto h-12 w-12 opacity-20 mb-4" />
+            <p>No devices found.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-gray-50/50 dark:bg-gray-900 border-b border-[var(--color-border)]">
+                <TableRow className="hover:bg-transparent border-b-0">
+                  <TableHead className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">Device</TableHead>
+                  <TableHead className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">Details</TableHead>
+                  <TableHead className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">Status</TableHead>
+                  <TableHead className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">Last Seen</TableHead>
+                  <TableHead className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">Assignment</TableHead>
+                  <TableHead className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-[var(--color-text-muted)] text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-[var(--color-border)]">
+                {devices.map((device) => (
+                  <DeviceRow key={device.id} device={device} onAssign={setAssigningDevice} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
+
+      <AssignDeviceModal
+        device={assigningDevice}
+        isOpen={!!assigningDevice}
+        onClose={() => setAssigningDevice(null)}
+      />
     </div>
   );
 }

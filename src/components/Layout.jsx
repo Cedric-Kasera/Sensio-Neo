@@ -1,13 +1,8 @@
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 
 export default function Layout() {
-  const isAuthenticated = localStorage.getItem('mamawatch_auth');
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
+  // Authentication is now fully handled by the <PrivateRoute> enclosing this component in App.jsx.
   return (
     <div className="flex h-screen bg-[var(--color-bg-base)] text-[var(--color-text-main)] transition-colors duration-300">
       <Sidebar />
