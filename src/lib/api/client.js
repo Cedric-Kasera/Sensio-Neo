@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { getAccessToken, clearSession } from '../auth/tokenStorage';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://ideographic-arie-hastily.ngrok-free.dev/api';
+
 const client = axios.create({
-    baseURL: 'http://localhost:4000/api',
+    baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
